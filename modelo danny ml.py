@@ -11,6 +11,7 @@ from sklearn.pipeline import Pipeline
 # Configuración inicial para evitar problemas de caché
 @st.cache_resource
 def load_resources():
+    
     # Workaround para scikit-learn 1.4.2
     import sklearn.compose
     if not hasattr(sklearn.compose, '_RemainderColsList'):
@@ -50,7 +51,7 @@ def main():
         """)
         return
 
-    st.success("✅ Modelo y preprocesador cargados correctamente")
+    st.success("Modelo y preprocesador cargados correctamente")
     
     # Widgets de entrada
     with st.form("prediction_form"):
@@ -64,11 +65,16 @@ def main():
                 value=10.0,
                 help="Rango típico: 0-150 barriles"
             )
-            probable_cause = st.selectbox(
-                "Causa Probable",
-                options=['CORROSION', 'HUMAN ERROR', 'MECHANICAL FAILURE', 'WEATHER', 'EQUIPMENT FAILURE'],
-                index=1
-            )
+            causas_dict = {
+    'Corrosión': 'CORROSION',
+    'Error humano': 'HUMAN ERROR',
+    'Falla mecánica': 'MECHANICAL FAILURE',
+    'Clima': 'WEATHER',
+    'Falla de equipo': 'EQUIPMENT FAILURE'
+}
+            causa_mostrada = st.selectbox("Causa probable", options=list(causas_dict.keys()))
+            probable_cause = causas_dict[causa_mostrada]
+
         
         with col2:
             release_gas = st.number_input(
@@ -78,11 +84,16 @@ def main():
                 value=500.0,
                 help="Rango típico: 0-10,000 unidades"
             )
-            operation_type = st.selectbox(
-                "Tipo de Operación",
-                options=['PRODUCTION', 'DRILLING', 'COMPLETIONS', 'INJ/DISP', 'TRANSPORT'],
-                index=0
-            )
+            operaciones_dict = {
+    'Producción': 'PRODUCTION',
+    'Perforación': 'DRILLING',
+    'Terminaciones': 'COMPLETIONS',
+    'Inyección / Disposición': 'INJ/DISP',
+    'Transporte': 'TRANSPORT'
+}
+            operacion_mostrada = st.selectbox("Tipo de operación", options=list(operaciones_dict.keys()))
+            operation_type = operaciones_dict[operacion_mostrada]
+
         
         if st.form_submit_button("Predecir", type="primary"):
             with st.spinner("Procesando..."):

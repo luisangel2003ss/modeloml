@@ -37,16 +37,27 @@ def main():
     )
 
     # Opciones de causa probable y tipo de operación
-    causas_probables = [
-        "CORROSION", "HUMAN ERROR", "EQUIPMENT FAILURE",
-        "OVERPRESSURE", "STRUCTURAL FAILURE", "VANDALISM"
-    ]
-    operaciones = [
-        "PRODUCTION", "DRILLING", "STIMULATION", "MAINTENANCE"
-    ]
+    causas_dict = {
+    "Corrosión": "CORROSION",
+    "Error humano": "HUMAN ERROR",
+    "Falla de equipo": "EQUIPMENT FAILURE",
+    "Sobrepresión": "OVERPRESSURE",
+    "Falla estructural": "STRUCTURAL FAILURE",
+    "Vandalismo": "VANDALISM"
+}
+    operaciones_dict = {
+    "Producción": "PRODUCTION",
+    "Perforación": "DRILLING",
+    "Estimulación": "STIMULATION",
+    "Mantenimiento": "MAINTENANCE"
+}
 
-    probable_cause = st.selectbox("Causa probable", causas_probables)
-    type_operation = st.selectbox("Tipo de operación", operaciones)
+
+    probable_cause_esp = st.selectbox("Causa probable", list(causas_dict.keys()))
+    type_operation_esp = st.selectbox("Tipo de operación", list(operaciones_dict.keys()))
+
+    probable_cause = causas_dict[probable_cause_esp]
+    type_operation = operaciones_dict[type_operation_esp]
 
     if st.button("Predecir"):
         input_df = pd.DataFrame({
