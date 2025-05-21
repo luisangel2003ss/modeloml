@@ -3,6 +3,10 @@ import numpy as np
 import joblib
 import streamlit as st
 import tensorflow as tf
+from sklearn.compose import ColumnTransformer
+from sklearn.pipeline import Pipeline
+from sklearn.impute import SimpleImputer
+from sklearn.preprocessing import RobustScaler, OneHotEncoder
 
 st.set_page_config(page_title="Predicción de Derrames", layout="centered")
 
