@@ -26,44 +26,43 @@ def predict(model, preprocessor, data):
 def main():
     st.title("Predicción de Derrames de Crudo y Agua")
 
-    st.markdown("### Ingrese los datos manualmente (se validarán los rangos):")
+    st.markdown("### Ingrese los datos del evento:")
 
-    # Entradas como texto
-    release_cond = st.text_input("Condensado derramado (0 - 100)")
-    release_gas = st.text_input("Gas liberado (0 - 5000)")
+    # Entradas numéricas con botones +/-
+    release_cond = st.number_input(
+        "Condensado derramado (barriles)", min_value=0.0, max_value=100.0, step=0.01, value=0.0
+    )
+    release_gas = st.number_input(
+        "Gas liberado (pies cúbicos)", min_value=0.0, max_value=5000.0, step=0.01, value=0.0
+    )
 
-    probable_cause = st.text_input("Causa probable (ej: CORROSION, HUMAN ERROR)").upper()
-    type_operation = st.text_input("Tipo de operación (ej: PRODUCTION, DRILLING)").upper()
+    # Opciones de causa probable y tipo de operación
+    causas_probables = [
+        "CORROSION", "HUMAN ERROR", "EQUIPMENT FAILURE",
+        "OVERPRESSURE", "STRUCTURAL FAILURE", "VANDALISM"
+    ]
+    operaciones = [
+        "PRODUCTION", "DRILLING", "STIMULATION", "MAINTENANCE"
+    ]
+
+    probable_cause = st.selectbox("Causa probable", causas_probables)
+    type_operation = st.selectbox("Tipo de operación", operaciones)
 
     if st.button("Predecir"):
-        try:
-            cond = float(release_cond)
-            gas = float(release_gas)
+        input_df = pd.DataFrame({
+            "release_cond": [release_cond],
+            "release_gas": [release_gas],
+            "probable_cause_edit": [probable_cause],
+            "type_operation": [type_operation]
+        })
 
-            if not (0 <= cond <= 100):
-                st.error("El valor de condensado debe estar entre 0 y 100.")
-                return
-            if not (0 <= gas <= 5000):
-                st.error("El valor de gas debe estar entre 0 y 5000.")
-                return
+        model, preprocessor = load_model_and_preprocessor()
+        prediction = predict(model, preprocessor, input_df)
 
-            input_df = pd.DataFrame({
-                "release_cond": [cond],
-                "release_gas": [gas],
-                "probable_cause_edit": [probable_cause],
-                "type_operation": [type_operation]
-            })
-
-            model, preprocessor = load_model_and_preprocessor()
-            prediction = predict(model, preprocessor, input_df)
-
-            if prediction is not None:
-                st.success("Predicción exitosa:")
-                st.write(f"Crudo estimado: {prediction[0][0]:.2f} barriles")
-                st.write(f"Agua estimada: {prediction[0][1]:.2f} barriles")
-
-        except ValueError:
-            st.error("Ingrese valores numéricos válidos para 'Condensado' y 'Gas'.")
+        if prediction is not None:
+            st.success("Predicción exitosa:")
+            st.write(f"Crudo estimado: {prediction[0][0]:.2f} barriles")
+            st.write(f"Agua estimada: {prediction[0][1]:.2f} barriles")
 
 if __name__ == "__main__":
     main()
