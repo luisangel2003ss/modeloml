@@ -11,20 +11,13 @@ from sklearn.pipeline import Pipeline
 # Configuración inicial para evitar problemas de caché
 @st.cache_resource
 def load_resources():
-    
-    # Workaround para scikit-learn 1.4.2
-    import sklearn.compose
-    if not hasattr(sklearn.compose, '_RemainderColsList'):
-        setattr(sklearn.compose, '_RemainderColsList', list)
-    
     try:
-        # Carga con verificación de integridad
         with st.spinner('Cargando modelo... (puede tomar unos segundos)'):
             model = tf.keras.models.load_model('modelo_entrenado.h5', compile=False)
-            
+        
         with st.spinner('Cargando preprocesador...'):
             preprocessor = joblib.load('preprocessor.pkl')
-            
+        
         return model, preprocessor, None
     except Exception as e:
         return None, None, str(e)
