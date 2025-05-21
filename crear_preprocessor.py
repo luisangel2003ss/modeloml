@@ -12,88 +12,44 @@ from sklearn.preprocessing import OneHotEncoder, RobustScaler
 from sklearn.impute import SimpleImputer
 import joblib
 
-import pandas as pd
-import numpy as np
-import joblib
-import tensorflow as tf
-import streamlit as st
+# Definir columnas
+numeric_features = ['release_cond', 'release_gas']
+categorical_features = ['probable_cause_edit', 'type_operation']
 
-# Configuración inicial para evitar problemas de caché
-@st.cache_resource
-def load_model_and_preprocessor():
-    try:
-        model = tf.keras.models.load_model("modelo_entrenado.h5", compile=False)
-        preprocessor = joblib.load("preprocessor.pkl")
-        return model, preprocessor, None
-    except Exception as e:
-        return None, None, str(e)
+# Cargar dataset
+df = pd.read_csv("district_cleaned_ready_v2.csv")
 
-def main():
-    st.title("Predicción de Derrames de Crudo y Agua")
+# Limpiar columnas numéricas si tienen unidades (por ejemplo: '2 GAL', '15 BBL')
+for col in numeric_features:
+    df[col] = df[col].astype(str).str.extract(r'(\d+\.?\d*)')  # Extrae solo el número
+    df[col] = pd.to_numeric(df[col], errors='coerce')  # Convierte a float, fuerza NaN si falla
 
-    model, preprocessor, error = load_model_and_preprocessor()
-    if error:
-        st.error(f"Error al cargar los recursos:\n{error}\n\n"
-                 "Verifica que los archivos 'modelo_entrenado.h5' y 'preprocessor.pkl' existan "
-                 "y que las versiones de las librerías sean compatibles.")
-        return
+# Verifica si las columnas quedaron bien
+print(df[numeric_features].dtypes)
+print(df[numeric_features].head())
 
-    # Entrada de usuario
-    release_cond = st.number_input(
-        "Condensado derramado (barriles)",
-        min_value=0.0,
-        max_value=150.0,
-        value=10.0,
-        help="Rango típico: 0-150 barriles"
-    )
+# Crear transformadores
+numeric_transformer = Pipeline(steps=[
+    ('imputer', SimpleImputer(strategy='mean')),
+    ('scaler', RobustScaler())
+])
 
-    release_gas = st.number_input(
-        "Gas liberado (unidades)",
-        min_value=0.0,
-        max_value=10000.0,
-        value=500.0,
-        help="Rango típico: 0-10,000 unidades"
-    )
+categorical_transformer = Pipeline(steps=[
+    ('imputer', SimpleImputer(strategy='most_frequent')),
+    ('encoder', OneHotEncoder(handle_unknown='ignore'))
+])
 
-    causas_dict = {
-        'Corrosión': 'CORROSION',
-        'Error humano': 'HUMAN ERROR',
-        'Falla mecánica': 'MECHANICAL FAILURE',
-        'Clima': 'WEATHER',
-        'Falla de equipo': 'EQUIPMENT FAILURE'
-    }
-    causa_mostrada = st.selectbox("Causa probable", list(causas_dict.keys()))
-    probable_cause = causas_dict[causa_mostrada]
+# Crear preprocesador
+preprocessor = ColumnTransformer(transformers=[
+    ('num', numeric_transformer, numeric_features),
+    ('cat', categorical_transformer, categorical_features)
+])
 
-    operaciones_dict = {
-        'Producción': 'PRODUCTION',
-        'Perforación': 'DRILLING',
-        'Terminaciones': 'COMPLETIONS',
-        'Inyección / Disposición': 'INJ/DISP',
-        'Transporte': 'TRANSPORT'
-    }
-    operacion_mostrada = st.selectbox("Tipo de operación", list(operaciones_dict.keys()))
-    operation_type = operaciones_dict[operacion_mostrada]
+# Entrenar preprocesador
+X = df[numeric_features + categorical_features]
+preprocessor.fit(X)
 
-    if st.button("Predecir"):
-        input_df = pd.DataFrame([{
-            'release_cond': release_cond,
-            'release_gas': release_gas,
-            'probable_cause_edit': probable_cause,
-            'type_operation': operation_type
-        }])
+# Guardar preprocesador
+joblib.dump(preprocessor, "preprocessor.pkl")
 
-        try:
-            processed = preprocessor.transform(input_df)
-            prediction = model.predict(processed)
-            prediction = np.expm1(np.maximum(prediction, 0))
-
-            st.success("Predicción exitosa:")
-            st.write(f"Crudo estimado: {prediction[0][0]:.2f} barriles")
-            st.write(f"Agua estimada: {prediction[0][1]:.2f} barriles")
-        except Exception as e:
-            st.error(f"Error durante la predicción:\n{str(e)}\n"
-                     "Puede ser debido a valores fuera de rango o categorías no vistas en el entrenamiento.")
-
-if __name__ == "__main__":
-    main()
+print("✅ Preprocesador entrenado y guardado como 'preprocessor.pkl'")

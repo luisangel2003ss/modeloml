@@ -12,9 +12,12 @@ st.set_page_config(page_title="Predicción de Derrames", layout="centered")
 
 @st.cache_resource
 def load_model_and_preprocessor():
-    model = tf.keras.models.load_model("modelo_entrenado.h5", compile=False)
-    preprocessor = joblib.load("preprocessor.pkl")
-    return model, preprocessor
+    try:
+        model = tf.keras.models.load_model("modelo_entrenado.h5", compile=False)
+        preprocessor = joblib.load("preprocessor.pkl")
+        return model, preprocessor, None
+    except Exception as e:
+        return None, None, str(e)
 
 def predict(model, preprocessor, data):
     try:
