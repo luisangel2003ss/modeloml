@@ -15,9 +15,10 @@ def load_model_and_preprocessor():
     try:
         model = tf.keras.models.load_model("modelo_entrenado.h5", compile=False)
         preprocessor = joblib.load("preprocessor.pkl")
-        return model, preprocessor, None
+        return model, preprocessor
     except Exception as e:
-        return None, None, str(e)
+        st.error(f"Error al cargar los archivos: {e}")
+        return None, None
 
 def predict(model, preprocessor, data):
     try:
@@ -72,15 +73,21 @@ def main():
             "release_gas": [release_gas],
             "probable_cause_edit": [probable_cause],
             "type_operation": [type_operation]
-        })
+    })
 
-        model, preprocessor = load_model_and_preprocessor()
-        prediction = predict(model, preprocessor, input_df)
+    model, preprocessor, error = load_model_and_preprocessor()
 
-        if prediction is not None:
-            st.success("Predicción exitosa:")
-            st.write(f"Crudo estimado: {prediction[0][0]:.2f} barriles")
-            st.write(f"Agua estimada: {prediction[0][1]:.2f} barriles")
+    if error:
+        st.error(f"Error al cargar modelo o preprocesador: {error}")
+        return
+
+    prediction = predict(model, preprocessor, input_df)
+
+    if prediction is not None:
+        st.success("Predicción exitosa:")
+        st.write(f"Crudo estimado: {prediction[0][0]:.2f} barriles")
+        st.write(f"Agua estimada: {prediction[0][1]:.2f} barriles")
+
 
 if __name__ == "__main__":
     main()
