@@ -1,60 +1,54 @@
-import streamlit as st
-import numpy as np
 import pandas as pd
+import numpy as np
 import joblib
+import streamlit as st
 import tensorflow as tf
 
-# Cargar modelo y preprocesador con manejo de errores y mensajes
+st.set_page_config(page_title="Predicción de Derrames", layout="centered")
+
 @st.cache_resource
-def load_model():
+def load_model_and_preprocessor():
+    model = tf.keras.models.load_model("modelo_entrenado.h5", compile=False)
+    preprocessor = joblib.load("preprocessor.pkl")
+    return model, preprocessor
+
+def predict(model, preprocessor, data):
     try:
-        model = tf.keras.models.load_model('modelo_entrenado.h5', compile=False)
-        preprocessor = joblib.load('preprocessor.pkl')
-        return model, preprocessor, None
+        processed = preprocessor.transform(data)
+        pred = model.predict(processed)
+        pred = np.expm1(pred)
+        pred = np.maximum(pred, 0)
+        return pred
     except Exception as e:
-        return None, None, str(e)
+        st.error(f"Error durante la predicción: {e}")
+        return None
 
-model, preprocessor, error = load_model()
+def main():
+    st.title("🌎 Predicción de Derrames de Crudo y Agua")
 
-if error:
-    st.error(f"Error cargando el modelo o preprocesador: {error}")
-else:
-    st.success("Modelo y preprocesador cargados correctamente")
+    st.markdown("Ingrese los datos para predecir el crudo y agua derramada:")
 
-    st.title("Predicción de Derrames de Crudo y Agua de Producción")
+    release_cond = st.slider("Condensado Derramado (barriles)", 0.0, 100.0, 10.0)
+    release_gas = st.slider("Gas Liberado (pies cúbicos)", 0.0, 5000.0, 500.0)
 
-    st.write("Ingrese los valores para realizar una predicción:")
-
-    # Rango sugerido según el análisis previo
-    release_cond = st.number_input("Condensado Derramado (barriles)", min_value=0.0, max_value=150.0, value=10.0)
-    release_gas = st.number_input("Gas Liberado (unidades)", min_value=0.0, max_value=10000.0, value=500.0)
-
-    probable_cause_edit = st.selectbox(
-        "Causa Probable Verificada", 
-        ['CORROSION', 'HUMAN ERROR', 'MECHANICAL FAILURE', 'WEATHER', 'EQUIPMENT FAILURE']
-    )
-
-    type_operation = st.selectbox(
-        "Tipo de Operación", 
-        ['PRODUCTION', 'DRILLING', 'COMPLETIONS', 'INJ/DISP', 'TRANSPORT']
-    )
+    probable_cause = st.text_input("Causa probable (ej: CORROSION, HUMAN ERROR)", "CORROSION").upper()
+    type_operation = st.text_input("Tipo de operación (ej: PRODUCTION, DRILLING)", "PRODUCTION").upper()
 
     if st.button("Predecir"):
-        input_df = pd.DataFrame([{
-            'release_cond': release_cond,
-            'release_gas': release_gas,
-            'probable_cause_edit': probable_cause_edit,
-            'type_operation': type_operation
-        }])
+        input_df = pd.DataFrame({
+            "release_cond": [release_cond],
+            "release_gas": [release_gas],
+            "probable_cause_edit": [probable_cause],
+            "type_operation": [type_operation]
+        })
 
-        try:
-            processed_input = preprocessor.transform(input_df)
-            prediction = model.predict(processed_input)
-            prediction = np.expm1(np.maximum(prediction, 0))  # Log reverse + sin negativos
+        model, preprocessor = load_model_and_preprocessor()
+        prediction = predict(model, preprocessor, input_df)
 
-            st.success("Predicción completada:")
-            st.write(f"Crudo derramado estimado: **{prediction[0][0]:.2f} barriles**")
-            st.write(f"Agua de producción estimada: **{prediction[0][1]:.2f} barriles**")
-        except Exception as e:
-            st.error(f"Error en la predicción: {e}")
+        if prediction is not None:
+            st.success("✅ Predicción exitosa:")
+            st.write(f"🛢️ Crudo estimado: {prediction[0][0]:.2f} barriles")
+            st.write(f"💧 Agua estimada: {prediction[0][1]:.2f} barriles")
 
+if __name__ == "__main__":
+    main()
