@@ -52,4 +52,4 @@ preprocessor.fit(X)
 # Guardar preprocesador
 joblib.dump(preprocessor, "preprocessor.pkl")
 
-print("✅ Preprocesador entrenado y guardado como 'preprocessor.pkl'")
+print("Preprocesador entrenado y guardado como 'preprocessor.pkl'")
