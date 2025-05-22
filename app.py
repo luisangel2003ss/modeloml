@@ -15,10 +15,10 @@ def load_model_and_preprocessor():
     try:
         model = tf.keras.models.load_model("modelo_entrenado.h5", compile=False)
         preprocessor = joblib.load("preprocessor.pkl")
-        return model, preprocessor
+        return model, preprocessor, None  # No hubo error
     except Exception as e:
-        st.error(f"Error al cargar los archivos: {e}")
-        return None, None
+        return None, None, str(e)  # Devuelves el mensaje de error
+
 
 def predict(model, preprocessor, data):
     try:
