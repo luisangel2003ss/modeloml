@@ -21,3 +21,11 @@ if hasattr(preprocessor, "transformers"):
         print(f"📌 Columnas: {columns}")
         print(f"⚙️  Objeto transformer: {transformer}")
         
+        
+import sklearn
+import joblib
+
+print("scikit-learn version:", sklearn.__version__)
+
+preprocessor = joblib.load("preprocessor.pkl")
+print("Preprocessor cargado correctamente")

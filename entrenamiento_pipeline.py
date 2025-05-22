@@ -1,83 +1,104 @@
 import pandas as pd
 import numpy as np
-import joblib
-import tensorflow as tf
-from tensorflow.keras.models import Sequential
-from tensorflow.keras.layers import Dense
+from sklearn.model_selection import train_test_split
 from sklearn.compose import ColumnTransformer
-from sklearn.preprocessing import OneHotEncoder, RobustScaler
+from sklearn.preprocessing import OneHotEncoder, StandardScaler
 from sklearn.impute import SimpleImputer
 from sklearn.pipeline import Pipeline
-from sklearn.model_selection import train_test_split
+import joblib
+from tensorflow.keras.models import Sequential
+from tensorflow.keras.layers import Dense
+from tensorflow.keras.callbacks import EarlyStopping
 
-# 1. Carga datos (ajusta ruta)
-ruta_csv = "district_cleaned_ready_v2.csv"
-df = pd.read_csv(ruta_csv)
+# Cargar el dataset
+ruta = "district_cleaned_ready_v2.csv"  # Reemplaza con la ruta correcta si es necesario
+df = pd.read_csv(ruta)
 
-# 2. Define X, y y limpia columnas objetivo
-X = df.drop(columns=["release_crude_oil", "release_prod_wtr"])
-y = df[["release_crude_oil", "release_prod_wtr"]]
+# Eliminar columnas no útiles (opcional, ajusta según necesidad)
+df = df.drop(columns=["duplicate"], errors="ignore")
 
-y["release_crude_oil"] = pd.to_numeric(y["release_crude_oil"], errors='coerce')
+# Definir columnas numéricas y categóricas relevantes
+columnas_numericas = [
+    "release_crude_oil", "release_cond", "release_prod_wtr", "release_gas",
+    "recovery_crude_oil", "recovery_cond", "recovery_prod_wtr"
+]
+columnas_categoricas = [
+    "type_operation", "probable_cause", "county", "district_edit"
+]
+
+# Función para limpiar valores como "5 GAL", "10 BBL", etc.
+def limpiar_valores(columna):
+    return columna.astype(str).str.extract(r'(\d+\.?\d*)')[0].astype(float)
+
+# Aplicar limpieza a las columnas numéricas que contienen texto
+for col in columnas_numericas:
+    if col in df.columns:
+        df[col] = limpiar_valores(df[col])
+
+# Eliminar filas sin la variable objetivo
+objetivo = "release_crude_oil"
+df = df[df[objetivo].notna()]
+
+# Definir X e y
+X = df[columnas_numericas + columnas_categoricas].copy()
+y = df[[objetivo, "release_prod_wtr"]].copy()
+
+# Convertir y a valores numéricos (solo por si acaso)
+y[objetivo] = pd.to_numeric(y[objetivo], errors='coerce')
 y["release_prod_wtr"] = pd.to_numeric(y["release_prod_wtr"], errors='coerce')
 
-# Eliminar filas con NaN en y (para evitar problemas)
-mask = y.notnull().all(axis=1)
-X = X[mask]
-y = y[mask]
-
-# Transformamos objetivos (log1p)
-y = np.log1p(y)
-
-# 3. Define columnas numéricas y categóricas (ajusta según tus columnas)
-numeric_features = ["release_cond", "release_gas"]
-categorical_features = ["probable_cause_edit", "type_operation"]
-
-numeric_transformer = Pipeline([
-    ('imputer', SimpleImputer(strategy='median')),
-    ('scaler', RobustScaler())
-])
-
-categorical_transformer = Pipeline([
-    ('imputer', SimpleImputer(strategy='constant', fill_value='missing')),
-    ('onehot', OneHotEncoder(handle_unknown='ignore'))
-])
-
-preprocessor = ColumnTransformer([
-    ('num', numeric_transformer, numeric_features),
-    ('cat', categorical_transformer, categorical_features)
-])
-
-# 4. Divide datos en entrenamiento y prueba
+# Separar en train y test
 X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
 
-# 5. Ajusta preprocesador con X_train
+# Preprocesamiento
+preprocessor = ColumnTransformer(
+    transformers=[
+        ("num", Pipeline([
+            ("imputer", SimpleImputer(strategy="median")),
+            ("scaler", StandardScaler())
+        ]), columnas_numericas),
+
+        ("cat", Pipeline([
+            ("imputer", SimpleImputer(strategy="most_frequent")),
+            ("encoder", OneHotEncoder(handle_unknown="ignore"))
+        ]), columnas_categoricas)
+    ]
+)
+
+# Ajustar el preprocesador
 preprocessor.fit(X_train)
 
-# 6. Transforma X_train para obtener input_dim para modelo Keras
-X_train_proc = preprocessor.transform(X_train)
-input_dim = X_train_proc.shape[1]
+# Transformar los datos
+X_train_proc = preprocessor.fit_transform(X_train)
+# Convertir sparse matrix a dense array (necesario para Keras)
+if hasattr(X_train_proc, "toarray"):
+    X_train_proc = X_train_proc.toarray()
+X_test_proc = preprocessor.fit_transform(X_test)
+# Convertir sparse matrix a dense array (necesario para Keras)
+if hasattr(X_test_proc, "toarray"):
+    X_test_proc = X_test_proc.toarray()
 
-# 7. Construye modelo Keras simple
-def construir_modelo(input_dim):
-    model = Sequential([
-        Dense(64, activation='relu', input_shape=(input_dim,)),
-        Dense(32, activation='relu'),
-        Dense(2)  # dos salidas: crude oil y prod water
-    ])
-    model.compile(optimizer='adam', loss='mse')
-    return model
 
-modelo_keras = construir_modelo(input_dim)
+# Construir el modelo
+modelo = Sequential([
+    Dense(64, activation='relu', input_shape=(X_train_proc.shape[1],)),
+    Dense(32, activation='relu'),
+    Dense(2)  # Dos salidas: release_crude_oil y release_prod_wtr
+])
 
-# 8. Entrena modelo Keras con datos preprocesados
-modelo_keras.fit(X_train_proc, y_train, epochs=50, batch_size=32, verbose=1)
+modelo.compile(optimizer='adam', loss='mse', metrics=['mae'])
 
-# 9. Guarda preprocesador con joblib
+# Entrenar el modelo
+modelo.fit(
+    X_train_proc, y_train,
+    validation_split=0.2,
+    epochs=100,
+    callbacks=[EarlyStopping(patience=10, restore_best_weights=True)],
+    verbose=1
+)
+
+# Guardar preprocesador y modelo
 joblib.dump(preprocessor, "preprocessor.pkl")
+modelo.save("modelo_entrenado.h5")
 
-# 10. Guarda modelo Keras con su método nativo
-modelo_keras.save("modelo_keras.h5")
-
-print("Preprocesador guardado en 'preprocessor.pkl'")
-print("Modelo Keras guardado en 'modelo_keras.h5'")
+print("Entrenamiento y guardado completados correctamente.")
