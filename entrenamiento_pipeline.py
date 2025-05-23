@@ -1,100 +1,95 @@
 import pandas as pd
 import numpy as np
 from sklearn.model_selection import train_test_split
-from sklearn.compose import ColumnTransformer
-from sklearn.preprocessing import OneHotEncoder, StandardScaler
-from sklearn.impute import SimpleImputer
 from sklearn.pipeline import Pipeline
+from sklearn.compose import ColumnTransformer
+from sklearn.preprocessing import StandardScaler, OneHotEncoder
+from sklearn.impute import SimpleImputer
 import joblib
 from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import Dense
 from tensorflow.keras.callbacks import EarlyStopping
+from scipy.sparse import csr_matrix
+import re
 
-# Cargar el dataset
-ruta = "district_cleaned_ready_v2.csv"  # Reemplaza con la ruta correcta si es necesario
-df = pd.read_csv(ruta)
+# Cargar datos desde CSV
+archivo = "district_cleaned_ready_v2.csv"
+df = pd.read_csv(archivo)
 
-# Eliminar columnas no útiles (opcional, ajusta según necesidad)
-df = df.drop(columns=["duplicate"], errors="ignore")
+# Función para extraer número de cadenas tipo '+/- 72' o con otros caracteres
+def extraer_numero(texto):
+    if pd.isna(texto):
+        return np.nan
+    match = re.search(r"[-+]?\d*\.\d+|\d+", str(texto))
+    if match:
+        return float(match.group())
+    else:
+        return np.nan
 
-# Definir columnas numéricas y categóricas relevantes
-columnas_numericas = [
-    "release_crude_oil", "release_cond", "release_prod_wtr", "release_gas",
-    "recovery_crude_oil", "recovery_cond", "recovery_prod_wtr"
-]
-columnas_categoricas = [
-    "type_operation", "probable_cause", "county", "district_edit"
-]
+# Aplicar limpieza a las columnas objetivo
+df["release_crude_oil"] = df["release_crude_oil"].apply(extraer_numero)
+df["release_prod_wtr"] = df["release_prod_wtr"].apply(extraer_numero)
 
-# Función para limpiar valores como "5 GAL", "10 BBL", etc.
-def limpiar_valores(columna):
-    return columna.astype(str).str.extract(r'(\d+\.?\d*)')[0].astype(float)
+# Eliminar filas con etiquetas NaN después de limpieza
+df = df.dropna(subset=["release_crude_oil", "release_prod_wtr"])
 
-# Aplicar limpieza a las columnas numéricas que contienen texto
-for col in columnas_numericas:
-    if col in df.columns:
-        df[col] = limpiar_valores(df[col])
+# Separar variables independientes y dependientes
+X = df.drop(columns=["release_crude_oil", "release_prod_wtr"])
+y = df[["release_crude_oil", "release_prod_wtr"]].astype(float)
 
-# Eliminar filas sin la variable objetivo
-objetivo = "release_crude_oil"
-df = df[df[objetivo].notna()]
+# Identificar columnas numéricas y categóricas
+columnas_numericas = X.select_dtypes(include=[np.number]).columns.tolist()
+columnas_categoricas = X.select_dtypes(include=["object", "category"]).columns.tolist()
 
-# Definir X e y
-X = df[columnas_numericas + columnas_categoricas].copy()
-y = df[[objetivo, "release_prod_wtr"]].copy()
-
-# Convertir y a valores numéricos (solo por si acaso)
-y[objetivo] = pd.to_numeric(y[objetivo], errors='coerce')
-y["release_prod_wtr"] = pd.to_numeric(y["release_prod_wtr"], errors='coerce')
-
-# Separar en train y test
-X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
-
-# Preprocesamiento
+# Preprocesador
 preprocessor = ColumnTransformer(
     transformers=[
         ("num", Pipeline([
             ("imputer", SimpleImputer(strategy="median")),
             ("scaler", StandardScaler())
         ]), columnas_numericas),
-
         ("cat", Pipeline([
             ("imputer", SimpleImputer(strategy="most_frequent")),
-            ("encoder", OneHotEncoder(handle_unknown="ignore"))
+            ("onehot", OneHotEncoder(handle_unknown="ignore"))
         ]), columnas_categoricas)
     ]
 )
 
-# Ajustar el preprocesador
-preprocessor.fit(X_train)
+# Separar en train y test
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
 
-# Transformar los datos
+# Ajustar el preprocesador y transformar los datos
 X_train_proc = preprocessor.fit_transform(X_train)
-# Convertir sparse matrix a dense array (necesario para Keras)
-if hasattr(X_train_proc, "toarray"):
+X_test_proc = preprocessor.transform(X_test)
+
+# Verificar datos válidos
+print("¿NaNs en X_train_proc?", np.isnan(X_train_proc.toarray()).any() if isinstance(X_train_proc, csr_matrix) else np.isnan(X_train_proc).any())
+print("¿Infs en X_train_proc?", np.isinf(X_train_proc.toarray()).any() if isinstance(X_train_proc, csr_matrix) else np.isinf(X_train_proc).any())
+print("¿NaNs en y_train?", np.isnan(y_train).any().any())
+print("¿Infs en y_train?", np.isinf(y_train).any().any())
+
+# Convertir X_train_proc a array denso si es necesario
+if isinstance(X_train_proc, csr_matrix):
     X_train_proc = X_train_proc.toarray()
-X_test_proc = preprocessor.fit_transform(X_test)
-# Convertir sparse matrix a dense array (necesario para Keras)
-if hasattr(X_test_proc, "toarray"):
+if isinstance(X_test_proc, csr_matrix):
     X_test_proc = X_test_proc.toarray()
 
-
-# Construir el modelo
+# Modelo Keras
 modelo = Sequential([
-    Dense(64, activation='relu', input_shape=(X_train_proc.shape[1],)),
-    Dense(32, activation='relu'),
-    Dense(2)  # Dos salidas: release_crude_oil y release_prod_wtr
+    Dense(64, activation="relu", input_shape=(X_train_proc.shape[1],)),
+    Dense(32, activation="relu"),
+    Dense(2)  # salida para dos valores
 ])
 
-modelo.compile(optimizer='adam', loss='mse', metrics=['mae'])
+modelo.compile(optimizer="adam", loss="mse", metrics=["mae"])
 
-# Entrenar el modelo
+# Entrenamiento
 modelo.fit(
-    X_train_proc, y_train,
-    validation_split=0.2,
+    X_train_proc, y_train.values,
     epochs=100,
-    callbacks=[EarlyStopping(patience=10, restore_best_weights=True)],
-    verbose=1
+    batch_size=32,
+    validation_split=0.2,
+    callbacks=[EarlyStopping(patience=10, restore_best_weights=True)]
 )
 
 # Guardar preprocesador y modelo
