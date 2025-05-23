@@ -21,36 +21,45 @@ traducciones_type_operation = {
 preprocessor = joblib.load("preprocessor.pkl")
 modelo_keras = tf.keras.models.load_model("modelo_entrenado.h5")
 
-# Título
-st.title("Predicción de Derrames de Petróleo y Agua Producida")
+# Obtener columnas numéricas y categóricas del preprocesador
+num_cols = preprocessor.transformers_[0][2]
+cat_cols = preprocessor.transformers_[1][2]
 
-# Entrada de usuario
+st.title("Predicción de Derrames de Petróleo y Agua Producida")
 st.subheader("Introduce los datos del incidente:")
 
-release_cond = st.number_input("Cantidad de condensado liberado (release_cond) [en barriles]", min_value=0.0)
-release_gas = st.number_input("Cantidad de gas liberado (release_gas) [en MCF]", min_value=0.0)
+input_data = {}
 
-probable_cause = st.selectbox("Causa probable", list(traducciones_probable_cause.keys()))
-type_operation = st.selectbox("Tipo de operación", list(traducciones_type_operation.keys()))
+# Inputs para columnas numéricas
+for col in num_cols:
+    valor = st.number_input(f"{col} (numérico)", value=0.0)
+    input_data[col] = valor
 
-# Botón de predicción
+# Inputs para columnas categóricas
+for col in cat_cols:
+    # Para columnas con traducción conocidas, mostrar selectbox con opciones traducidas
+    if col == "probable_cause_edit":
+        opcion = st.selectbox("Causa probable", list(traducciones_probable_cause.keys()))
+        input_data[col] = traducciones_probable_cause[opcion]
+    elif col == "type_operation":
+        opcion = st.selectbox("Tipo de operación", list(traducciones_type_operation.keys()))
+        input_data[col] = traducciones_type_operation[opcion]
+    else:
+        # Si no hay traducción, permitir escribir texto libre o elegir de opciones fijas si tienes
+        valor = st.text_input(f"{col} (categórico)", value="Unknown")
+        input_data[col] = valor
+
 if st.button("Predecir derrames"):
     try:
-        # Traducción inversa
-        probable_cause_orig = traducciones_probable_cause[probable_cause]
-        type_operation_orig = traducciones_type_operation[type_operation]
-
-        input_dict = {
-            "release_cond": release_cond,
-            "release_gas": release_gas,
-            "probable_cause_edit": probable_cause_orig,
-            "type_operation": type_operation_orig
-        }
-
-        df_input = pd.DataFrame([input_dict])
+        # Armar DataFrame con un solo registro
+        df_input = pd.DataFrame([input_data])
 
         # Preprocesamiento
         X_proc = preprocessor.transform(df_input)
+
+        # Convertir a array si es sparse
+        if hasattr(X_proc, "toarray"):
+            X_proc = X_proc.toarray()
 
         # Predicción
         pred_log = modelo_keras.predict(X_proc)
@@ -59,5 +68,6 @@ if st.button("Predecir derrames"):
         st.success("Predicción completada:")
         st.write(f"🛢️ **Crude Oil estimado:** {pred_real[0][0]:.2f} barriles")
         st.write(f"💧 **Produced Water estimada:** {pred_real[0][1]:.2f} barriles")
+
     except Exception as e:
         st.error(f"Ocurrió un error en la predicción: {str(e)}")
