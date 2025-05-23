@@ -108,14 +108,21 @@ if st.button("🔍 Predecir derrames"):
         st.write(f"🛢️ **Crude Oil estimado:** {crude_pred:.2f} barriles")
         st.write(f"💧 **Produced Water estimada:** {water_pred:.2f} barriles")
 
-        # Gráfico simple
-        st.subheader("📊 Visualización de resultados")
-        fig, ax = plt.subplots()
-        barras = ax.bar(["Crude Oil", "Produced Water"], [crude_pred, water_pred], color=["brown", "blue"])
-        ax.set_ylabel("Cantidad (barriles)")
-        ax.set_title("Predicción de Derrames")
-        ax.bar_label(barras, fmt="%.2f")
-        st.pyplot(fig)
+
+        # Crear gráfico para el crudo derramado
+        fig_crudo, ax_crudo = plt.subplots()
+        ax_crudo.bar(["Crudo Derramado"], [pred_real[0][0]], color="saddlebrown")
+        ax_crudo.set_ylabel("Barriles")
+        ax_crudo.set_title("Predicción de Crudo Derramado")
+        st.pyplot(fig_crudo)
+        
+        # Crear gráfico para el agua producida
+        fig_agua, ax_agua = plt.subplots()
+        ax_agua.bar(["Agua Producida"], [pred_real[0][1]], color="skyblue")
+        ax_agua.set_ylabel("Barriles")
+        ax_agua.set_title("Predicción de Agua Producida")
+        st.pyplot(fig_agua)
+
 
     except Exception as e:
         st.error(f"❌ Ocurrió un error en la predicción: {str(e)}")
