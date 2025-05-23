@@ -84,13 +84,21 @@ modelo = Sequential([
 modelo.compile(optimizer="adam", loss="mse", metrics=["mae"])
 
 # Entrenamiento
-modelo.fit(
+early_stop = EarlyStopping(patience=10, restore_best_weights=True)
+
+hist = modelo.fit(
     X_train_proc, y_train.values,
     epochs=100,
     batch_size=32,
     validation_split=0.2,
-    callbacks=[EarlyStopping(patience=10, restore_best_weights=True)]
+    callbacks=[early_stop]
 )
+
+# Guardar historial de entrenamiento para graficar después
+import pickle
+with open("training_history.pkl", "wb") as f:
+    pickle.dump(hist.history, f)
+
 
 # Guardar preprocesador y modelo
 joblib.dump(preprocessor, "preprocessor.pkl")

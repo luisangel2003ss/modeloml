@@ -22,7 +22,7 @@ traducciones_type_operation = {
 preprocessor = joblib.load("preprocessor.pkl")
 modelo_keras = tf.keras.models.load_model("modelo_entrenado.h5")
 
-# Columnas
+# Columnas del preprocesador
 columnas_numericas = preprocessor.transformers_[0][2]
 columnas_categoricas = preprocessor.transformers_[1][2]
 
@@ -59,17 +59,17 @@ if release_gas < 10.0:
 elif release_gas > 9500.0:
     st.warning("⚠️ Estás ingresando un valor muy alto de gas, cerca del límite máximo observado.")
 
-# Categóricas
+# Selección categorías
 probable_cause = st.selectbox("Causa probable", list(traducciones_probable_cause.keys()))
 type_operation = st.selectbox("Tipo de operación", list(traducciones_type_operation.keys()))
 
 if st.button("🔍 Predecir derrames"):
     try:
-        # Traducción inversa
+        # Traducción a inglés para el modelo
         probable_cause_orig = traducciones_probable_cause[probable_cause]
         type_operation_orig = traducciones_type_operation[type_operation]
 
-        # Datos de entrada
+        # Crear diccionario con datos de entrada
         input_data = {
             "release_cond": release_cond,
             "release_gas": release_gas,
@@ -77,9 +77,9 @@ if st.button("🔍 Predecir derrames"):
             "type_operation": type_operation_orig
         }
 
+        # Construir dataframe con todas las columnas que espera el preprocesador
         columnas_esperadas = preprocessor.feature_names_in_
         input_data_completo = {}
-
         for col in columnas_esperadas:
             if col in input_data:
                 input_data_completo[col] = input_data[col]
@@ -89,40 +89,41 @@ if st.button("🔍 Predecir derrames"):
                 input_data_completo[col] = "Unknown"
 
         df_input = pd.DataFrame([input_data_completo])
+
+        # Preprocesar
         X_proc = preprocessor.transform(df_input)
-        if hasattr(X_proc, "toarray"):
+        if hasattr(X_proc, "toarray"):  # Por si es sparse matrix
             X_proc = X_proc.toarray()
 
-        # Predicción
+        # Predecir y revertir transformación log(1 + x)
         pred_log = modelo_keras.predict(X_proc)
         pred_real = np.expm1(pred_log)
 
         crude_pred = pred_real[0][0]
         water_pred = pred_real[0][1]
 
-        # Prevenir negativos/infs
+        # Controlar rangos para evitar negativos o valores absurdos
         crude_pred = max(0.0, min(crude_pred, 10000.0))
         water_pred = max(0.0, min(water_pred, 10000.0))
 
+        # Mostrar resultados
         st.success("✅ Predicción completada:")
-        st.write(f"🛢️ **Crude Oil estimado:** {crude_pred:.2f} barriles")
-        st.write(f"💧 **Produced Water estimada:** {water_pred:.2f} barriles")
+        st.write(f"🛢️ **Crudo Derramado estimado:** {crude_pred:.2f} barriles")
+        st.write(f"💧 **Agua Producida estimada:** {water_pred:.2f} barriles")
 
-
-        # Crear gráfico para el crudo derramado
+        # Gráfico para crudo derramado
         fig_crudo, ax_crudo = plt.subplots()
-        ax_crudo.bar(["Crudo Derramado"], [pred_real[0][0]], color="saddlebrown")
+        ax_crudo.bar(["Crudo Derramado"], [crude_pred], color="saddlebrown")
         ax_crudo.set_ylabel("Barriles")
         ax_crudo.set_title("Predicción de Crudo Derramado")
         st.pyplot(fig_crudo)
-        
-        # Crear gráfico para el agua producida
+
+        # Gráfico para agua producida
         fig_agua, ax_agua = plt.subplots()
-        ax_agua.bar(["Agua Producida"], [pred_real[0][1]], color="skyblue")
+        ax_agua.bar(["Agua Producida"], [water_pred], color="skyblue")
         ax_agua.set_ylabel("Barriles")
         ax_agua.set_title("Predicción de Agua Producida")
         st.pyplot(fig_agua)
-
 
     except Exception as e:
         st.error(f"❌ Ocurrió un error en la predicción: {str(e)}")
