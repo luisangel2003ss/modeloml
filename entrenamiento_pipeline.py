@@ -1,20 +1,20 @@
-import pandas as pd
-import numpy as np
-from sklearn.model_selection import train_test_split
-from sklearn.pipeline import Pipeline
-from sklearn.compose import ColumnTransformer
-from sklearn.preprocessing import StandardScaler, OneHotEncoder
-from sklearn.impute import SimpleImputer
-from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
-import joblib
-from tensorflow.keras.models import Sequential
-from tensorflow.keras.layers import Dense, Dropout
-from tensorflow.keras.callbacks import EarlyStopping, ReduceLROnPlateau
-from tensorflow.keras.optimizers import Adam
-from scipy.sparse import csr_matrix
-import re
-import pickle
-import matplotlib.pyplot as plt
+    import pandas as pd
+    import numpy as np
+    from sklearn.model_selection import train_test_split
+    from sklearn.pipeline import Pipeline
+    from sklearn.compose import ColumnTransformer
+    from sklearn.preprocessing import StandardScaler, OneHotEncoder
+    from sklearn.impute import SimpleImputer
+    from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
+    import joblib
+    from tensorflow.keras.models import Sequential
+    from tensorflow.keras.layers import Dense, Dropout
+    from tensorflow.keras.callbacks import EarlyStopping, ReduceLROnPlateau
+    from tensorflow.keras.optimizers import Adam
+    from scipy.sparse import csr_matrix
+    import re
+    import pickle
+    import matplotlib.pyplot as plt
 
 # ==============================
 # Cargar y limpiar los datos

@@ -8,6 +8,11 @@ def cargar_modelo_y_preprocesador(preproc_path="preprocessor.pkl", modelo_path="
     modelo = load_model(modelo_path)
     return preprocessor, modelo
 
+def extraer_columnas_usadas(preprocessor):
+    columnas_numericas = preprocessor.transformers_[0][2]
+    columnas_categoricas = preprocessor.transformers_[1][2]
+    return columnas_numericas + columnas_categoricas
+
 def validar_columnas(df, columnas_esperadas):
     faltantes = [col for col in columnas_esperadas if col not in df.columns]
     extras = [col for col in df.columns if col not in columnas_esperadas]
@@ -37,13 +42,9 @@ if __name__ == "__main__":
     archivo_entrada = sys.argv[1]
     
     preprocessor, modelo = cargar_modelo_y_preprocesador()
+    columnas_usadas = extraer_columnas_usadas(preprocessor)
     
     df_nuevo = pd.read_csv(archivo_entrada)
-
-    # Extraer columnas usadas del preprocesador
-    columnas_numericas = preprocessor.transformers_[0][2]
-    columnas_categoricas = preprocessor.transformers_[1][2]
-    columnas_usadas = columnas_numericas + columnas_categoricas
 
     try:
         predicciones = predecir(df_nuevo, preprocessor, modelo, columnas_usadas)
