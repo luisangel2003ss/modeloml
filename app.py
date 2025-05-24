@@ -5,20 +5,24 @@ import joblib
 import tensorflow as tf
 import matplotlib.pyplot as plt
 
-# Traducciones
-traducciones_probable_cause = {
-    "Falla hidráulica": "Hydraulic Failure",
-    "Error humano": "Human Error",
-    "Corrosión": "Corrosion"
+# Diccionarios de traducción
+causas_dict = {
+    'Corrosión': 'CORROSION',
+    'Error humano': 'HUMAN ERROR',
+    'Falla mecánica': 'MECHANICAL FAILURE',
+    'Clima': 'WEATHER',
+    'Falla de equipo': 'EQUIPMENT FAILURE'
 }
 
-traducciones_type_operation = {
-    "Perforación": "Drilling",
-    "Producción": "Production",
-    "Mantenimiento": "Maintenance"
+operaciones_dict = {
+    'Producción': 'PRODUCTION',
+    'Perforación': 'DRILLING',
+    'Terminaciones': 'COMPLETIONS',
+    'Inyección / Disposición': 'INJ/DISP',
+    'Transporte': 'TRANSPORT'
 }
 
-# Carga modelo y preprocesador
+# Cargar modelo y preprocesador
 preprocessor = joblib.load("preprocessor.pkl")
 modelo_keras = tf.keras.models.load_model("modelo_entrenado.h5")
 
@@ -31,99 +35,84 @@ st.title("🛢️ Predicción de Derrames de Crudo y Agua Producida")
 
 # Entrada de usuario
 st.subheader("Introduce los datos del incidente:")
+col1, col2 = st.columns(2)
 
-release_cond = st.number_input(
-    "Condensado Derramado (bbl)",
-    min_value=0.0,
-    max_value=137.0,
-    value=10.0,
-    help="Valores típicos: entre 1 y 137 barriles"
-)
+with col1:
+    release_cond = st.number_input("Condensado Derramado (bbl)", min_value=0.0, max_value=150.0, value=10.0)
+    causa_mostrada = st.selectbox("Causa probable", options=list(causas_dict.keys()))
+    probable_cause = causas_dict[causa_mostrada]
+    recovery_crude = st.number_input("Recuperación de Crudo (bbl)", min_value=0.0, max_value=10000.0, value=0.0)
 
-release_gas = st.number_input(
-    "Gas Liberado (MCF)",
-    min_value=0.0,
-    max_value=9924.0,
-    value=500.0,
-    help="Valores típicos: entre 10 y 9,924 MCF"
-)
+with col2:
+    release_gas = st.number_input("Gas Liberado (unidades)", min_value=0.0, max_value=10000.0, value=500.0)
+    operacion_mostrada = st.selectbox("Tipo de operación", options=list(operaciones_dict.keys()))
+    type_operation = operaciones_dict[operacion_mostrada]
+    recovery_water = st.number_input("Recuperación de Agua Producida (bbl)", min_value=0.0, max_value=10000.0, value=0.0)
 
-# Advertencias por valores extremos
-if release_cond < 1.0:
-    st.warning("⚠️ Has ingresado un valor de condensado muy bajo. ¿Estás seguro de que no es cero por error?")
-elif release_cond > 130.0:
-    st.warning("⚠️ Estás ingresando un valor muy alto de condensado, cerca del máximo observado.")
-
-if release_gas < 10.0:
-    st.warning("⚠️ Has ingresado una cantidad de gas muy baja. Verifica que sea correcto.")
-elif release_gas > 9500.0:
-    st.warning("⚠️ Estás ingresando un valor muy alto de gas, cerca del límite máximo observado.")
-
-# Selección categorías
-probable_cause = st.selectbox("Causa probable", list(traducciones_probable_cause.keys()))
-type_operation = st.selectbox("Tipo de operación", list(traducciones_type_operation.keys()))
-
+# Botón de predicción
 if st.button("🔍 Predecir derrames"):
     try:
-        # Traducción a inglés para el modelo
-        probable_cause_orig = traducciones_probable_cause[probable_cause]
-        type_operation_orig = traducciones_type_operation[type_operation]
-
-        # Crear diccionario con datos de entrada
+        # Diccionario de entrada
         input_data = {
             "release_cond": release_cond,
             "release_gas": release_gas,
-            "probable_cause_edit": probable_cause_orig,
-            "type_operation": type_operation_orig
+            "probable_cause_edit": probable_cause,
+            "type_operation": type_operation,
+            "recovery_crude_oil_edit": recovery_crude,
+            "recovery_prod_water_edit": recovery_water
         }
 
-        # Construir dataframe con todas las columnas que espera el preprocesador
+        # Completar columnas faltantes
         columnas_esperadas = preprocessor.feature_names_in_
-        input_data_completo = {}
+        input_completo = {}
         for col in columnas_esperadas:
             if col in input_data:
-                input_data_completo[col] = input_data[col]
+                input_completo[col] = input_data[col]
             elif col in columnas_numericas:
-                input_data_completo[col] = 0
+                input_completo[col] = 0.0
             else:
-                input_data_completo[col] = "Unknown"
+                input_completo[col] = "Unknown"
 
-        df_input = pd.DataFrame([input_data_completo])
+        df_input = pd.DataFrame([input_completo])
 
         # Preprocesar
         X_proc = preprocessor.transform(df_input)
-        if hasattr(X_proc, "toarray"):  # Por si es sparse matrix
+        if hasattr(X_proc, "toarray"):
             X_proc = X_proc.toarray()
 
-        # Predecir y revertir transformación log(1 + x)
-        pred_log = modelo_keras.predict(X_proc)
-        pred_real = np.expm1(pred_log)
+        # Predecir
+        y_pred = modelo_keras.predict(X_proc)
+        y_pred = np.clip(y_pred, 0, None)  # Solo positivos
 
-        crude_pred = pred_real[0][0]
-        water_pred = pred_real[0][1]
-
-        # Controlar rangos para evitar negativos o valores absurdos
-        crude_pred = max(0.0, min(crude_pred, 10000.0))
-        water_pred = max(0.0, min(water_pred, 10000.0))
+        crude_pred = float(y_pred[0][0])
+        water_pred = float(y_pred[0][1])
 
         # Mostrar resultados
         st.success("✅ Predicción completada:")
         st.write(f"🛢️ **Crudo Derramado estimado:** {crude_pred:.2f} barriles")
         st.write(f"💧 **Agua Producida estimada:** {water_pred:.2f} barriles")
 
-        # Gráfico para crudo derramado
-        fig_crudo, ax_crudo = plt.subplots()
-        ax_crudo.bar(["Crudo Derramado"], [crude_pred], color="saddlebrown")
-        ax_crudo.set_ylabel("Barriles")
-        ax_crudo.set_title("Predicción de Crudo Derramado")
-        st.pyplot(fig_crudo)
+        # Gráficos de barras
+        fig_bar, ax_bar = plt.subplots()
+        ax_bar.bar(["Crudo Derramado", "Agua Producida"], [crude_pred, water_pred], color=["saddlebrown", "skyblue"])
+        ax_bar.set_ylabel("Barriles")
+        ax_bar.set_title("Predicción de Derrames")
+        st.pyplot(fig_bar)
 
-        # Gráfico para agua producida
-        fig_agua, ax_agua = plt.subplots()
-        ax_agua.bar(["Agua Producida"], [water_pred], color="skyblue")
-        ax_agua.set_ylabel("Barriles")
-        ax_agua.set_title("Predicción de Agua Producida")
-        st.pyplot(fig_agua)
+        # Histograma (aunque con un solo dato no aporta mucho, queda preparado para batchs)
+        fig_hist, axs = plt.subplots(1, 2, figsize=(10, 4))
+        axs[0].hist([crude_pred], bins=5, color="saddlebrown", alpha=0.7)
+        axs[0].set_title("Distribución - Crudo Derramado")
+        axs[0].set_xlabel("Barriles")
+        axs[0].set_ylabel("Frecuencia")
+
+        axs[1].hist([water_pred], bins=5, color="skyblue", alpha=0.7)
+        axs[1].set_title("Distribución - Agua Producida")
+        axs[1].set_xlabel("Barriles")
+        axs[1].set_ylabel("Frecuencia")
+
+        plt.tight_layout()
+        st.pyplot(fig_hist)
 
     except Exception as e:
-        st.error(f"❌ Ocurrió un error en la predicción: {str(e)}")
+        st.error(f"❌ Ocurrió un error: {str(e)}")

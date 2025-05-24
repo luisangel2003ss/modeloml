@@ -1,22 +1,30 @@
-# -*- coding: utf-8 -*-
-"""
-Created on Wed May 21 15:57:43 2025
-
-@author: RAUL SANCHEZ
-"""
-
 import sklearn
 import tensorflow as tf
 import pandas as pd
 import streamlit as st
 import joblib
-import numpy 
-import matplotlib.pyplot
+import numpy
+import matplotlib
+import scipy
+import re
+import pickle
 
-print("scikit-learn version:", sklearn.__version__)
-print("tensorflow version:", tf.__version__)
-print("pandas version:", pd.__version__)
-print("streamlit version:", st.__version__)
-print("numpy version:", numpy.__version__)
-print("joblib version:", joblib.__version__)
-print("matplot version:", matplotlib.__version__)
+def print_version(pkg, name=None):
+    name = name or pkg.__name__
+    version = getattr(pkg, '__version__', None)
+    if version is None:
+        print(f"{name}: No version attribute found")
+    else:
+        print(f"{name} version: {version}")
+
+print_version(sklearn)
+print_version(tf, 'tensorflow')
+print_version(pd, 'pandas')
+print_version(st, 'streamlit')
+print_version(joblib)
+print_version(numpy)
+print_version(matplotlib, 'matplotlib')
+print_version(scipy)
+
+print("re: built-in module, no version info")
+print("pickle: built-in module, no version info")
