@@ -17,7 +17,7 @@ numeric_features = ['release_cond', 'release_gas']
 categorical_features = ['probable_cause_edit', 'type_operation']
 
 # Cargar dataset
-df = pd.read_csv("district_cleaned_ready_v2_limpio.csv")
+df = pd.read_csv("district_cleaned_ready_v2.csv")
 
 # Limpiar columnas numéricas si tienen unidades (por ejemplo: '2 GAL', '15 BBL')
 for col in numeric_features:
