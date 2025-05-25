@@ -5,7 +5,7 @@ import joblib
 from tensorflow.keras.models import load_model
 
 # Cargar modelo y preprocesador
-modelo = load_model("model.h5")
+modelo = load_model("modelo_multisalida.h5")
 preprocessor = joblib.load("preprocessor.pkl")
 
 # Opciones categóricas únicas (extraídas del dataset)
