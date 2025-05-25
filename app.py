@@ -1,50 +1,47 @@
 import streamlit as st
-import pandas as pd
 import numpy as np
-import joblib
+import pandas as pd
 from tensorflow.keras.models import load_model
 
-@st.cache_resource
-def cargar_modelos():
-    preprocessor = joblib.load("preprocessor.pkl")
-    modelo_crudo = load_model("modelo_crudo.h5")
-    modelo_agua = load_model("modelo_agua.h5")
-    return preprocessor, modelo_crudo, modelo_agua
+# Cargar modelos
+modelo_crudo = load_model("modelo_crudo.h5")
+modelo_agua = load_model("modelo_agua.h5")
 
-def predecir(df_entrada, preprocessor, modelo_crudo, modelo_agua):
-    X_proc = preprocessor.transform(df_entrada)
-    if hasattr(X_proc, "toarray"):  # si es matriz dispersa
-        X_proc = X_proc.toarray()
-    pred_crudo = np.clip(modelo_crudo.predict(X_proc), 0, None).flatten()
-    pred_agua = np.clip(modelo_agua.predict(X_proc), 0, None).flatten()
-    return pred_crudo, pred_agua
+st.title("Predicción de Derrames")
 
-def main():
-    st.title("Predicción de Derrames de Crudo y Agua")
+# Entradas numéricas
+cantidad_crudo = st.number_input("Cantidad de crudo (barriles)", min_value=0.0, step=0.1)
+cantidad_gas = st.number_input("Cantidad de gas (m³)", min_value=0.0, step=0.1)
 
-    preprocessor, modelo_crudo, modelo_agua = cargar_modelos()
+# Selección de tipo de operación
+tipo_operacion = st.selectbox("Tipo de operación", ["Extracción", "Transporte", "Almacenamiento"])
 
-    uploaded_file = st.file_uploader("Carga un archivo CSV con los datos de entrada", type=["csv"])
+# Selección de tipo de error
+tipo_error = st.selectbox("Tipo de error", ["Error humano", "Corrosión", "Falla mecánica", "Otro"])
 
-    if uploaded_file is not None:
-        df_input = pd.read_csv(uploaded_file)
+# Mapeo de variables categóricas a valores numéricos (one-hot encoding)
+operacion_map = {
+    "Extracción": [1, 0, 0],
+    "Transporte": [0, 1, 0],
+    "Almacenamiento": [0, 0, 1]
+}
 
-        st.write("Datos cargados:")
-        st.dataframe(df_input.head())
+error_map = {
+    "Error humano": [1, 0, 0, 0],
+    "Corrosión": [0, 1, 0, 0],
+    "Falla mecánica": [0, 0, 1, 0],
+    "Otro": [0, 0, 0, 1]
+}
 
-        if st.button("Predecir"):
-            try:
-                pred_crudo, pred_agua = predecir(df_input, preprocessor, modelo_crudo, modelo_agua)
+# Construir el vector de entrada
+entrada = [cantidad_crudo, cantidad_gas] + operacion_map[tipo_operacion] + error_map[tipo_error]
+entrada_array = np.array([entrada])
 
-                resultados = df_input.copy()
-                resultados["Predicción Crudo"] = pred_crudo
-                resultados["Predicción Agua"] = pred_agua
+# Realizar predicciones
+if st.button("Predecir"):
+    pred_crudo = modelo_crudo.predict(entrada_array)
+    pred_agua = modelo_agua.predict(entrada_array)
 
-                st.write("Resultados de la predicción:")
-                st.dataframe(resultados)
-
-            except Exception as e:
-                st.error(f"Error en la predicción: {e}")
-
-if __name__ == "__main__":
-    main()
+    # Mostrar resultados
+    st.write("Predicción de derrame de crudo:", np.clip(pred_crudo, 0, None).flatten()[0])
+    st.write("Predicción de derrame de agua:", np.clip(pred_agua, 0, None).flatten()[0])
