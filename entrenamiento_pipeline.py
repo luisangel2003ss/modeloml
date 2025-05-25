@@ -1,6 +1,7 @@
 import pandas as pd
 import numpy as np
 import re
+import joblib 
 from sklearn.pipeline import Pipeline
 from sklearn.compose import ColumnTransformer
 from sklearn.preprocessing import StandardScaler, OneHotEncoder
@@ -98,6 +99,10 @@ r2 = r2_score(y_real, y_pred, multioutput='raw_values')
 print("\n--- Métricas de Validación ---")
 print(f"Crudo -> MSE: {mse[0]:.2f} | MAE: {mae[0]:.2f} | R2: {r2[0]:.2f}")
 print(f"Agua  -> MSE: {mse[1]:.2f} | MAE: {mae[1]:.2f} | R2: {r2[1]:.2f}")
+
+# --- Guardar modelo y preprocesador ---
+modelo.save("modelo_multisalida.h5")
+joblib.dump(preprocessor, "preprocessor.pkl")
 
 # --- Función de predicción para nuevos datos ---
 def predecir(nuevos_datos_df):
