@@ -10,6 +10,7 @@ from sklearn.impute import SimpleImputer
 # Cargar dataset
 df = pd.read_csv("district_cleaned_ready_v2.csv")
 
+# Función para extraer números de un texto
 def extraer_numero(texto):
     if pd.isna(texto):
         return np.nan
@@ -26,25 +27,25 @@ X = df.drop(columns=["release_crude_oil", "release_prod_wtr"])
 X["recovery_crude_oil_edit"] = df["recovery_crude_oil_edit"]
 X["recovery_prod_water_edit"] = df["recovery_prod_water_edit"]
 
-# Columnas para el preprocesador
+# Columnas categóricas y numéricas
 columnas_numericas = X.select_dtypes(include=[np.number]).columns.tolist()
 columnas_categoricas = X.select_dtypes(include=["object", "category"]).columns.tolist()
 
-# Crear pipelines
-preprocessor = ColumnTransformer([
+# Crear transformador de columnas
+preprocessor = ColumnTransformer(transformers=[
     ("num", Pipeline([
         ("imputer", SimpleImputer(strategy="median")),
         ("scaler", StandardScaler())
     ]), columnas_numericas),
     ("cat", Pipeline([
         ("imputer", SimpleImputer(strategy="most_frequent")),
-        ("onehot", OneHotEncoder(handle_unknown="ignore"))
+        ("onehot", OneHotEncoder(handle_unknown="ignore", sparse_output=False))
     ]), columnas_categoricas)
 ])
 
 # Entrenar preprocesador
 preprocessor.fit(X)
 
-# Guardar
+# Guardar preprocesador
 joblib.dump(preprocessor, "preprocessor.pkl")
-print("Preprocesador guardado con columnas consistentes al entrenamiento.")
+print("✅ Preprocesador guardado correctamente con scikit-learn 1.4.2.")
