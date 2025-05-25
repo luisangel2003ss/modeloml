@@ -1,55 +1,50 @@
-# -*- coding: utf-8 -*-
-"""
-Created on Wed May 21 15:01:05 2025
-
-@author: RAUL SANCHEZ
-"""
-
 import pandas as pd
+import numpy as np
+import re
+import joblib
 from sklearn.pipeline import Pipeline
 from sklearn.compose import ColumnTransformer
-from sklearn.preprocessing import OneHotEncoder, RobustScaler
+from sklearn.preprocessing import StandardScaler, OneHotEncoder
 from sklearn.impute import SimpleImputer
-import joblib
-
-# Definir columnas
-numeric_features = ['release_cond', 'release_gas']
-categorical_features = ['probable_cause_edit', 'type_operation']
 
 # Cargar dataset
 df = pd.read_csv("district_cleaned_ready_v2.csv")
 
-# Limpiar columnas numéricas si tienen unidades (por ejemplo: '2 GAL', '15 BBL')
-for col in numeric_features:
-    df[col] = df[col].astype(str).str.extract(r'(\d+\.?\d*)')  # Extrae solo el número
-    df[col] = pd.to_numeric(df[col], errors='coerce')  # Convierte a float, fuerza NaN si falla
+def extraer_numero(texto):
+    if pd.isna(texto):
+        return np.nan
+    match = re.search(r"[-+]?\d*\.\d+|\d+", str(texto))
+    return float(match.group()) if match else np.nan
 
-# Verifica si las columnas quedaron bien
-print(df[numeric_features].dtypes)
-print(df[numeric_features].head())
+# Limpiar columnas objetivo
+df["release_crude_oil"] = df["release_crude_oil"].apply(extraer_numero)
+df["release_prod_wtr"] = df["release_prod_wtr"].apply(extraer_numero)
+df = df.dropna(subset=["release_crude_oil", "release_prod_wtr"])
 
-# Crear transformadores
-numeric_transformer = Pipeline(steps=[
-    ('imputer', SimpleImputer(strategy='mean')),
-    ('scaler', RobustScaler())
-])
+# Variables predictoras
+X = df.drop(columns=["release_crude_oil", "release_prod_wtr"])
+X["recovery_crude_oil_edit"] = df["recovery_crude_oil_edit"]
+X["recovery_prod_water_edit"] = df["recovery_prod_water_edit"]
 
-categorical_transformer = Pipeline(steps=[
-    ('imputer', SimpleImputer(strategy='most_frequent')),
-    ('encoder', OneHotEncoder(handle_unknown='ignore'))
-])
+# Columnas para el preprocesador
+columnas_numericas = X.select_dtypes(include=[np.number]).columns.tolist()
+columnas_categoricas = X.select_dtypes(include=["object", "category"]).columns.tolist()
 
-# Crear preprocesador
-preprocessor = ColumnTransformer(transformers=[
-    ('num', numeric_transformer, numeric_features),
-    ('cat', categorical_transformer, categorical_features)
+# Crear pipelines
+preprocessor = ColumnTransformer([
+    ("num", Pipeline([
+        ("imputer", SimpleImputer(strategy="median")),
+        ("scaler", StandardScaler())
+    ]), columnas_numericas),
+    ("cat", Pipeline([
+        ("imputer", SimpleImputer(strategy="most_frequent")),
+        ("onehot", OneHotEncoder(handle_unknown="ignore"))
+    ]), columnas_categoricas)
 ])
 
 # Entrenar preprocesador
-X = df[numeric_features + categorical_features]
 preprocessor.fit(X)
 
-# Guardar preprocesador
+# Guardar
 joblib.dump(preprocessor, "preprocessor.pkl")
-
-print("Preprocesador entrenado y guardado como 'preprocessor.pkl'")
+print("Preprocesador guardado con columnas consistentes al entrenamiento.")
