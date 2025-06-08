@@ -34,10 +34,6 @@ tipo_operacion = st.selectbox("Tipo de operación", options=type_operations)
 causa_probable = st.selectbox("Causa probable", options=probable_causes)
 distrito = st.selectbox("Distrito", options=districts)
 
-
-
-
-
 # Botón de predicción
 if st.button("Predecir"):
     # Crear DataFrame con los datos ingresados
